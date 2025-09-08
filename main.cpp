@@ -10,21 +10,29 @@ extern "C" {
 #include <windows.h>
 #endif
 
-static void go_send(Client* client, const void* data, size_t size)
-    { GoSend(client, (void*)data, size); }
-static void go_broadcast(const BroadcastReason* reason, const void* data, size_t size)
-    { GoBroadcast((BroadcastReason*)reason, (void*)data, size); }
+static void go_sendText(Client* client, const void* data, size_t size)
+    { GoSendText(client, (void*)data, size); }
+static void go_sendBinary(Client* client, const void* data, size_t size)
+    { GoSendBinary(client, (void*)data, size); }
+static void go_broadcastText(const BroadcastReason* reason, const void* data, size_t size)
+    { GoBroadcastText((BroadcastReason*)reason, (void*)data, size); }
+static void go_broadcastBinary(const BroadcastReason* reason, const void* data, size_t size)
+    { GoBroadcastBinary((BroadcastReason*)reason, (void*)data, size); }
 
-static const CxxAPI* g_cxxCode;
-static const GoAPI g_goCode = {
-        go_send,
-        go_broadcast,
+static const CxxAPI* g_cxx;
+
+Client* Connect() { return g_cxx->connect(); }
+void Disconnect(Client* client) { return g_cxx->disconnect(client); }
+void ReceiveText(Client* client, const void* data, size_t size) { return g_cxx->receiveText(client, data, size); }
+void ReceiveBinary(Client* client, const void* data, size_t size) { return g_cxx->receiveBinary(client, data, size); }
+bool Filter(const Client* client, const BroadcastReason* reason) { return g_cxx->filter(client, reason); }
+
+static const GoAPI g_go = {
+        .sendText = go_sendText,
+        .sendBinary = go_sendBinary,
+        .broadcastText = go_broadcastText,
+        .broadcastBinary = go_broadcastBinary,
     };
-
-Client* Connect() { return g_cxxCode->connect(); }
-void Disconnect(Client* client) { return g_cxxCode->disconnect(client); }
-void Receive(Client* client, const void* data, size_t size) { return g_cxxCode->receive(client, data, size); }
-bool Filter(const Client* client, const BroadcastReason* reason) { return g_cxxCode->filter(client, reason); }
 
 void Init(void)
 {
@@ -34,5 +42,5 @@ void Init(void)
         fprintf(stderr, "Unable to load 'server.dll'.");
         exit(1);
     }
-    g_cxxCode = initServer(&g_goCode);
+    g_cxx = initServer(&g_go);
 }

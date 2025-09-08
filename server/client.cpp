@@ -9,22 +9,17 @@ Client::~Client()
 {
 }
 
-void Client::send(const void* data, size_t size)
-{
-    main_go->send(this, data, size);
-}
-
-void Client::broadcast(const BroadcastReason* reason, const void* data, size_t size)
-{
-    main_go->broadcast(reason, data, size);
-}
-
 bool Client::acceptBroadcast(const BroadcastReason* reason) const
 {
     return true;
 }
 
-void Client::receive(const void* data, size_t size)
+void Client::receiveText(const void* data, size_t size)
 {
-    send(data, size);
+    sendText(data, size);
+}
+
+void Client::receiveBinary(const void* data, size_t size)
+{
+    sendBinary(data, size);
 }

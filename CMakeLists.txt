@@ -46,7 +46,7 @@ if(WIN32)
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/write_timestamp.cmake"
             ${src_go}
         MAIN_DEPENDENCY
-            "${CMAKE_CURRENT_SOURCE_DIR}/server/cgo.h"
+            "${CMAKE_CURRENT_SOURCE_DIR}/main.go"
         )
 
     add_custom_command(OUTPUT
@@ -63,6 +63,12 @@ if(WIN32)
         )
 
     set_target_properties(server PROPERTIES
+        VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:server>"
+        VS_DEBUGGER_COMMAND "${server_exe}"
+        VS_DEBUGGER_COMMAND_ARGUMENTS ""
+        )
+
+    set_target_properties(server_exe PROPERTIES
         VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:server>"
         VS_DEBUGGER_COMMAND "${server_exe}"
         VS_DEBUGGER_COMMAND_ARGUMENTS ""

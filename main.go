@@ -30,7 +30,8 @@ import (
 type Client struct {
     client *C.Client
     conn *websocket.Conn
-    send chan []byte
+    sendText chan []byte
+    sendBinary chan []byte
 }
 
 var clients = make(map[*C.Client]*Client)
@@ -40,7 +41,8 @@ func (c *Client) kill() {
     clientsMutex.Lock()
     if _, ok := clients[c.client]; ok {
         delete(clients, c.client)
-        close(c.send)
+        close(c.sendText)
+        close(c.sendBinary)
         c.conn.Close()
         if c.client != nil {
             C.Disconnect(c.client)
@@ -51,20 +53,26 @@ func (c *Client) kill() {
 
 func (c* Client) reader() {
     for {
-        _, msg, err := c.conn.ReadMessage()
+        mt, msg, err := c.conn.ReadMessage()
         if err != nil {
             c.kill()
             return;
         }
 
-        buf := C.CBytes(msg)
-        C.Receive(c.client, buf, C.size_t(len(msg)))
-        C.free(buf)
+        if mt == websocket.TextMessage {
+            buf := C.CBytes(msg)
+            C.ReceiveText(c.client, buf, C.size_t(len(msg)))
+            C.free(buf)
+        } else if mt == websocket.BinaryMessage {
+            buf := C.CBytes(msg)
+            C.ReceiveBinary(c.client, buf, C.size_t(len(msg)))
+            C.free(buf)
+        }
     }
 }
 
-func (c* Client) writer() {
-    for msg := range c.send {
+func (c* Client) textWriter() {
+    for msg := range c.sendText {
         if err := c.conn.WriteMessage(websocket.TextMessage, msg); err != nil {
             c.kill()
             return
@@ -72,8 +80,17 @@ func (c* Client) writer() {
     }
 }
 
+func (c* Client) binaryWriter() {
+    for msg := range c.sendBinary {
+        if err := c.conn.WriteMessage(websocket.BinaryMessage, msg); err != nil {
+            c.kill()
+            return
+        }
+    }
+}
+
 func startClient(conn* websocket.Conn) *Client {
-    c := &Client{conn: conn, send: make(chan[] byte, 64)}
+    c := &Client{conn: conn, sendText: make(chan[] byte, 64), sendBinary: make(chan[] byte, 64) }
 
     c.client = C.Connect()
     if c.client == nil {
@@ -85,7 +102,8 @@ func startClient(conn* websocket.Conn) *Client {
     clients[c.client] = c
     clientsMutex.Unlock()
 
-    go c.writer()
+    go c.textWriter()
+    go c.binaryWriter()
     go c.reader()
 
     return c
@@ -93,8 +111,8 @@ func startClient(conn* websocket.Conn) *Client {
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-//export GoSend
-func GoSend(client *C.Client, data unsafe.Pointer, length C.size_t) {
+//export GoSendText
+func GoSendText(client *C.Client, data unsafe.Pointer, length C.size_t) {
     clientsMutex.RLock()
     c, ok := clients[client]
     clientsMutex.RUnlock()
@@ -102,21 +120,53 @@ func GoSend(client *C.Client, data unsafe.Pointer, length C.size_t) {
     if ok {
         msg := C.GoBytes(data, C.int(length))
         select {
-            case c.send <- msg:
+            case c.sendText <- msg:
             default:
                 c.kill()
         }
     }
 }
 
-//export GoBroadcast
-func GoBroadcast(reason *C.BroadcastReason, data unsafe.Pointer, length C.size_t) {
+//export GoSendBinary
+func GoSendBinary(client *C.Client, data unsafe.Pointer, length C.size_t) {
+    clientsMutex.RLock()
+    c, ok := clients[client]
+    clientsMutex.RUnlock()
+
+    if ok {
+        msg := C.GoBytes(data, C.int(length))
+        select {
+            case c.sendBinary <- msg:
+            default:
+                c.kill()
+        }
+    }
+}
+
+//export GoBroadcastText
+func GoBroadcastText(reason *C.BroadcastReason, data unsafe.Pointer, length C.size_t) {
     msg := C.GoBytes(data, C.int(length))
     clientsMutex.RLock()
     for _, c := range clients {
         if C.Filter(c.client, reason) {
             select {
-                case c.send <- msg:
+                case c.sendText <- msg:
+                default:
+                    c.kill()
+            }
+        }
+    }
+    clientsMutex.RUnlock()
+}
+
+//export GoBroadcastBinary
+func GoBroadcastBinary(reason *C.BroadcastReason, data unsafe.Pointer, length C.size_t) {
+    msg := C.GoBytes(data, C.int(length))
+    clientsMutex.RLock()
+    for _, c := range clients {
+        if C.Filter(c.client, reason) {
+            select {
+                case c.sendBinary <- msg:
                 default:
                     c.kill()
             }

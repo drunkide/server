@@ -5,20 +5,22 @@
 
 struct BroadcastReason;
 
-class Client
+class Client final
 {
 public:
     Client();
-    virtual ~Client();
-
-    /* implemented in Go */
-    void send(const void* data, size_t size);
-    static void broadcast(const BroadcastReason* reason, const void* data, size_t size);
+    ~Client();
 
     /* callbacks from Go */
-    static Client* create() { return new Client; }
-    virtual bool acceptBroadcast(const BroadcastReason* reason) const;
-    virtual void receive(const void* data, size_t size);
+    bool acceptBroadcast(const BroadcastReason* reason) const;
+    void receiveText(const void* data, size_t size);
+    void receiveBinary(const void* data, size_t size);
+
+    /* implemented in Go */
+    void sendText(const void* data, size_t size);
+    void sendBinary(const void* data, size_t size);
+    static void broadcastText(const BroadcastReason* reason, const void* data, size_t size);
+    static void broadcastBinary(const BroadcastReason* reason, const void* data, size_t size);
 };
 
 #endif
